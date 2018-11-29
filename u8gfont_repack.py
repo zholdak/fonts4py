@@ -3,6 +3,8 @@
 #
 
 import argparse
+import os
+import sys
 
 from u8g.font import U8GFont
 from u8g.glyph import U8GGlyph
@@ -78,6 +80,7 @@ def repack_and_write(stream, font_data, charset):
     #
     # characters data
     #
+    skipped_chars = list()
     repacked_characters = bytearray()  # repacked characters data
     empty_tail = bytearray()  # keep "empty tail", that will not store if no valuable characters occurs after it
     cur_pos = U8GFont.Header.size  # skip font header and point to begin of characters data
@@ -92,7 +95,7 @@ def repack_and_write(stream, font_data, charset):
                 start_sm_a_pos = U8GFont.Header.size + len(repacked_characters) + len(empty_tail)  # save position
         byte = font_data[cur_pos]  # get byte from font data array
         if byte == 255:  # if this is "empty" (skipped) character
-            print("Skipped empty char {}".format(char_info(cur_enc)))
+            skipped_chars.append(cur_enc)
             cur_pos += 1  # increment array position
             if last_valuable_enc:  # if at least one valuable character encountered
                 empty_tail.extend(b'\xff')  # save "empty" character to "tail"
@@ -105,12 +108,12 @@ def repack_and_write(stream, font_data, charset):
                 repacked_characters.extend(font_data[cur_pos:cur_pos + ch_size])
                 last_valuable_enc = cur_enc
             else:
-                print("Skipped char {}".format(char_info(cur_enc)))
+                skipped_chars.append(cur_enc)
                 if last_valuable_enc:
                     empty_tail.extend(b'\xff')
             cur_pos += ch_size
         cur_enc += 1
-    if last_valuable_enc < start_sm_a_pos:  # if small 'a' position above our last valuable character
+    if start_sm_a_pos <= last_valuable_enc :  # if small 'a' position above our last valuable character
         start_sm_a_pos = 0  # "reset" this position
 
     repacked_font_header = font_data[:U8GFont.Header.size]
@@ -126,6 +129,7 @@ def repack_and_write(stream, font_data, charset):
     font2_data.extend(repacked_characters)
     font2 = U8GFont(font2_data)
     print(font)
+    print("Skipped chars: {}".format(''.join(chr(x) for x in skipped_chars)))
     print(font2)
 
     stream.write("# {}\n".format(repr(font2)))
@@ -137,6 +141,11 @@ def repack_and_write(stream, font_data, charset):
 
     if args.charset is None:
         pass
+
+
+def quit(msg):
+    print(msg)
+    sys.exit(1)
 
 
 DESC = """u8gfont_repack.py
@@ -152,12 +161,21 @@ if __name__ == "__main__":
     parser.add_argument('outfile', type=str, help='Path and name of output file')
     parser.add_argument('-c', '--charset',
                         type=str,
-                        help='Character set. e.g. 1234567890: to restrict for a clock display.',
+                        help='Character set. e.g. 1234567890 or @filename.ext to load from file',
                         default='')
     args = parser.parse_args()
 
+    req_charset = None
     if args.charset:
-        print("Requested charset: {}".format(args.charset))
+        if args.charset[0] == '@':
+            charset_filename = args.charset[1:]
+            print("Loading charset from file '{}'".format(charset_filename))
+            if not os.path.isfile(charset_filename):
+                quit("Can't load charset from file '{}'".format(charset_filename))
+            req_charset = open(charset_filename).read()
+        else:
+            req_charset = args.charset
+        print("Requested charset: {}".format(req_charset))
 
     font_vars = {}
     with open(args.infile, 'r') as infile:
@@ -165,6 +183,6 @@ if __name__ == "__main__":
 
     try:
         with open(args.outfile, 'w', encoding='utf-8') as stream:
-            repack_and_write(stream, bytearray(font_vars['data']), args.charset)
+            repack_and_write(stream, bytearray(font_vars['data']), req_charset)
     except OSError:
         print("Can't open", args.infile, 'for writing')

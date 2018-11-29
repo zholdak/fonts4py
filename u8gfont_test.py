@@ -2,10 +2,13 @@
 
 from PIL import Image, ImageDraw
 
-import font_6x10_repacked as font
-# import font_8x13B_repacked as font
-# import font_helvb24r_repacked as font
-# import font_repacked as font
+# import pyfonts.font_5x_baby_full as font
+# import pyfonts.font_5x_micro_full as font
+# import pyfonts.font_4x6_full as font
+# import pyfonts.font_5x8_full as font
+# import pyfonts.font_fixed_v0_7x7_full as font
+# import pyfonts.font_profont10_5x6_full as font
+import pyfonts.font_profont29_16x19_full as font
 
 from u8g.font import U8GFont
 
