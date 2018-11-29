@@ -1,0 +1,170 @@
+#
+# --charset 0123456789-.°C
+#
+
+import argparse
+
+from u8g.font import U8GFont
+from u8g.glyph import U8GGlyph
+
+
+class ByteWriter(object):
+    bytes_per_line = 16
+
+    def __init__(self, stream, varname):
+        self.stream = stream
+        self.stream.write('{} = [\n'.format(varname))
+        self.bytecount = 0  # For line breaks
+        self.bytes_in_line = 0  # For line breaks
+
+    def _eol(self):
+        self.stream.write("\n")
+
+    def _eot(self):
+        self.stream.write("\n")
+
+    def _bol(self):
+        self.stream.write("    ")
+
+    # Output a single byte
+    def out_byte(self, byte):
+        if self.bytecount:
+            self.stream.write(',')
+        if self.bytecount and not self.bytes_in_line:
+            self._eol()
+        if not self.bytes_in_line:
+            self._bol()
+        self.stream.write('{:d}'.format(byte))
+        self.bytes_in_line += 1
+        self.bytes_in_line %= self.bytes_per_line
+        self.bytecount += 1
+
+    # Output from a sequence
+    def out_data(self, bytelist):
+        for byt in bytelist:
+            self.out_byte(byt)
+
+    # ensure a correct final line
+    def eot(self):  # User force EOL if one hasn't occurred
+        if self.bytes_in_line:
+            self._eot()
+        self.stream.write(']\n')
+
+
+def char_info(char_enc: int):
+    return "0x{0:02x} ({0:d}) '{1}'".format(char_enc, chr(char_enc))
+
+
+def repack_and_write(stream, font_data, charset):
+
+    font = U8GFont(font_data)
+
+    #
+    # header
+    #
+    include_encodings = None
+    if charset:  # if we should to include only specified characters
+        include_encodings = {ord(x) for x in str(charset)}  # deduplicate
+        enc_start = min(include_encodings)  # in repacked font header -- starting character
+        enc_end = min(max(include_encodings), font.enc_end)  # in repacked font header -- ending character
+        start_cap_a_pos = 0  # in repacked font header -- position of capital letter 'A'
+        start_sm_a_pos = 0  # in repacked font header -- position of small letter 'a'
+    else:  # we include all characters in the given font
+        start_cap_a_pos = font.start_cap_A  # keep value from original font
+        start_sm_a_pos = font.start_sm_a  # keep value from original font
+        enc_start = font.enc_start  # keep value from original font
+        enc_end = font.enc_end  # keep value from original font
+
+    #
+    # characters data
+    #
+    repacked_characters = bytearray()  # repacked characters data
+    empty_tail = bytearray()  # keep "empty tail", that will not store if no valuable characters occurs after it
+    cur_pos = U8GFont.Header.size  # skip font header and point to begin of characters data
+    cur_enc = font.enc_start  # from which character we should start to iterate
+    last_valuable_enc = None  # store last valuable character in the font (non-empty)
+    # iterate thought characters, available in the font
+    while cur_enc <= enc_end:  # and cur_pos < len(font_data):
+        if cur_enc >= enc_start:  # if current encoding already at start
+            if cur_enc == ord('A') and not start_cap_a_pos:  # not already set
+                start_cap_a_pos = U8GFont.Header.size + len(repacked_characters) + len(empty_tail)  # save position
+            if cur_enc == ord('a') and not start_sm_a_pos:  # not already set
+                start_sm_a_pos = U8GFont.Header.size + len(repacked_characters) + len(empty_tail)  # save position
+        byte = font_data[cur_pos]  # get byte from font data array
+        if byte == 255:  # if this is "empty" (skipped) character
+            print("Skipped empty char {}".format(char_info(cur_enc)))
+            cur_pos += 1  # increment array position
+            if last_valuable_enc:  # if at least one valuable character encountered
+                empty_tail.extend(b'\xff')  # save "empty" character to "tail"
+        else:
+            ch_size = U8GGlyph.header_size(font) + U8GGlyph.data_size(font, cur_pos)
+            if not include_encodings or cur_enc in include_encodings:
+                if len(empty_tail):
+                    repacked_characters.extend(empty_tail)
+                    empty_tail.clear()
+                repacked_characters.extend(font_data[cur_pos:cur_pos + ch_size])
+                last_valuable_enc = cur_enc
+            else:
+                print("Skipped char {}".format(char_info(cur_enc)))
+                if last_valuable_enc:
+                    empty_tail.extend(b'\xff')
+            cur_pos += ch_size
+        cur_enc += 1
+    if last_valuable_enc < start_sm_a_pos:  # if small 'a' position above our last valuable character
+        start_sm_a_pos = 0  # "reset" this position
+
+    repacked_font_header = font_data[:U8GFont.Header.size]
+    repacked_font_header[U8GFont.Header.start_cap_A_offset] = (start_cap_a_pos >> 8) & 0xff
+    repacked_font_header[U8GFont.Header.start_cap_A_offset + 1] = start_cap_a_pos & 0xff
+    repacked_font_header[U8GFont.Header.start_sm_a_offset] = (start_sm_a_pos >> 8) & 0xff
+    repacked_font_header[U8GFont.Header.start_sm_a_offset + 1] = start_sm_a_pos & 0xff
+    repacked_font_header[U8GFont.Header.enc_start_offset] = enc_start
+    repacked_font_header[U8GFont.Header.enc_end_offset] = last_valuable_enc  # enc_end
+
+    font2_data = bytearray()
+    font2_data.extend(repacked_font_header)
+    font2_data.extend(repacked_characters)
+    font2 = U8GFont(font2_data)
+    print(font)
+    print(font2)
+
+    stream.write("# {}\n".format(repr(font2)))
+    stream.write('all_chars = """{}"""\n'.format(font2.get_all_chars()))
+    bw_font = ByteWriter(stream, 'data')
+    bw_font.out_data(repacked_font_header)
+    bw_font.out_data(repacked_characters)
+    bw_font.eot()
+
+    if args.charset is None:
+        pass
+
+
+DESC = """u8gfont_repack.py
+Utility to repack .
+Sample usage:
+u8gfont_repack.py <infile.py> <outfile.py>
+"""
+
+if __name__ == "__main__":
+
+    parser = argparse.ArgumentParser(__file__, description=DESC, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument('infile', type=str, help='Input file path')
+    parser.add_argument('outfile', type=str, help='Path and name of output file')
+    parser.add_argument('-c', '--charset',
+                        type=str,
+                        help='Character set. e.g. 1234567890: to restrict for a clock display.',
+                        default='')
+    args = parser.parse_args()
+
+    if args.charset:
+        print("Requested charset: {}".format(args.charset))
+
+    font_vars = {}
+    with open(args.infile, 'r') as infile:
+        exec(infile.read(), font_vars)
+
+    try:
+        with open(args.outfile, 'w', encoding='utf-8') as stream:
+            repack_and_write(stream, bytearray(font_vars['data']), args.charset)
+    except OSError:
+        print("Can't open", args.infile, 'for writing')
