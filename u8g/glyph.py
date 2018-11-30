@@ -24,50 +24,6 @@ class U8GGlyph:
     # 2  DWIDTH        signed --> upper  4 Bit
     # byte 0 == 255 indicates empty glyph
 
-    # def __init__(self, font, req_enc: int):
-    #
-    #     self.font = font
-    #     self.req_enc = req_enc
-    #
-    #     try:
-    #         self.header_pos = U8GGlyph.glyph_start(self.font, self.req_enc)
-    #         if self.header_pos >= len(self.font.font_data):
-    #             raise U8GInvalidFont("Invalid position: it greater than total bytes if current font!")
-    #
-    #         if self.font.font_data[self.header_pos] == 255:
-    #             self.data_pos = None
-    #         else:
-    #             self.data_pos = self.header_pos + U8GGlyph.header_size(self.font)
-    #
-    #         if self.data_pos:
-    #             if self.header_pos + U8GGlyph.header_size(self.font) >= len(self.font.font_data):
-    #                 raise U8GInvalidFont(
-    #                     "Invalid position: pointer to data's first byte is greater than total bytes in current font!")
-    #
-    #             self.width = self.font.font_data[self.header_pos + U8GGlyph.Header.width_offset]
-    #             self.height = self.font.font_data[self.header_pos + U8GGlyph.Header.height_offset]
-    #
-    #             self.data_size = self.font.font_data[self.header_pos + U8GGlyph.Header.size_offset]
-    #             if self.data_size > len(self.font.font_data):
-    #                 raise U8GInvalidFont("Invalid position: len of current glyph data out of total font's data array")
-    #
-    #             self.deltax = self.font.font_data[self.header_pos + 3]
-    #             self.xoffset = self.font.font_data[self.header_pos + 4]
-    #             self.xoffset = self.xoffset - 256 if self.xoffset > 127 else self.xoffset
-    #             self.yoffset = self.font.font_data[self.header_pos + 5]
-    #             self.yoffset = self.yoffset - 256 if self.yoffset > 127 else self.yoffset
-    #
-    #     except U8GNoGlyph:
-    #         self.header_pos = None
-    #         self.data_pos = None
-
-    # def __str__(self):
-    #     return "pos={}, width={}, height={}, data_size={}, deltax={}, xoffset={}, yoffset={}" \
-    #         .format(self.header_pos, self.width, self.height, self.data_size, self.deltax, self.xoffset, self.yoffset)
-    #
-    # def __len__(self):
-    #     return self.data_size
-
     @staticmethod
     def isvalid(font, pos):
         return pos and font.font_data[pos] != 255
@@ -84,7 +40,7 @@ class U8GGlyph:
         if font.format == 0:
             return font.font_data[enc_pos + 0]
         elif font.format == 1:
-            return (font.font_data[enc_pos + 1] & 0xf0) >> 4
+            return font.font_data[enc_pos + 1] >> 4
 
     @staticmethod
     def height(font, enc_pos):
@@ -115,8 +71,7 @@ class U8GGlyph:
             xoffset = font.font_data[enc_pos + 4]
             return xoffset - 256 if xoffset > 127 else xoffset
         elif font.format == 1:
-            xoffset = (font.font_data[enc_pos + 0] & 0xf0) >> 4
-            return -(xoffset & 0x07) if xoffset & 0x08 else xoffset
+            return font.font_data[enc_pos + 0] >> 4
 
     @staticmethod
     def yoffset(font, enc_pos):
@@ -125,7 +80,7 @@ class U8GGlyph:
             return yoffset - 256 if yoffset > 127 else yoffset
         elif font.format == 1:
             yoffset = font.font_data[enc_pos + 0] & 0x0f
-            return -(yoffset & 0x07) if yoffset & 0x08 else yoffset
+            return yoffset - 2
 
     @staticmethod
     def size(font, pos):
