@@ -4,6 +4,8 @@
 #
 
 import math
+from u8g.glyph import U8GGlyph
+from u8g.font import U8GFont
 
 
 class Canvas:
@@ -517,10 +519,8 @@ class Canvas:
         self.draw_line(x, y, x + xy[1][0], y + xy[1][1])
         del points
 
-    def char_width(self, char, font):
-        _, _, char_width = font.get_ch(char)
-        del _
-        return char_width
+    def char_width(self, char, font: U8GFont):
+        return U8GGlyph.width(font, U8GGlyph.glyph_pos(font, ord(char)))
 
     # def char_width_exact(self, char, font):
     #     glyph, char_height, char_width = font.get_ch(char)
@@ -533,90 +533,41 @@ class Canvas:
     #         #for bit_no in range(0, 8):
     #     del glyph
 
-    def string_width(self, string, font):
-        len = 0
-        for ch in string:
-            len += self.char_width(ch, font)
-        return len
+    # @staticmethod
+    # def string_width(string: str, font: U8GFont):
+    #     x0, _, x1, _ = font.draw_string(0, 0, string, None)
+    #     return x1 - x0
 
-    def draw_char(self, x0, y0, char, font):
-        glyph, char_height, char_width = font.get_ch(char)
-        if glyph is None:
-            return  # All done
-        buf = bytearray(glyph)
-        bytes_per_row = math.ceil(char_width / 8)
-        for row_no in range(char_height):
-            for col_no in range(bytes_per_row):
-                byte = buf[col_no + (bytes_per_row * row_no)]
-                for bit_no in range(8):
-                    char_col_pos = bit_no + (col_no * 8)
-                    if char_col_pos > char_width:
-                        break
-                    if byte << bit_no & 0x80:
-                        self.draw_pixel(x0 + char_col_pos, y0 + row_no)
-        del buf
-        del glyph
-        return char_width
+    # def draw_char__(self, x0, y0, char, font):
+    #     glyph, char_height, char_width = font.get_ch(char)
+    #     if glyph is None:
+    #         return  # All done
+    #     buf = bytearray(glyph)
+    #     bytes_per_row = math.ceil(char_width / 8)
+    #     for row_no in range(char_height):
+    #         for col_no in range(bytes_per_row):
+    #             byte = buf[col_no + (bytes_per_row * row_no)]
+    #             for bit_no in range(8):
+    #                 char_col_pos = bit_no + (col_no * 8)
+    #                 if char_col_pos > char_width:
+    #                     break
+    #                 if byte << bit_no & 0x80:
+    #                     self.draw_pixel(x0 + char_col_pos, y0 + row_no)
+    #     del buf
+    #     del glyph
+    #     return char_width
 
-    def draw_string(self, x0, y0, string, font, condensed=0):
-        x = x0
-        for ch in string:
-            x += self.draw_char(x, y0, ch, font) - condensed
-        return x - x0
+    def draw_char(self, x0: int, y0: int, char, font: U8GFont):
+        return font.draw_char(x0, y0, char, self.draw_pixel)
 
-    # def draw_bmp_at(self, x, y, image_path):
-    #     if x >= self.width or y >= self.height:
-    #         return
-    #     try:
-    #         with open(image_path, 'rb') as bmp_file:
-    #             header = BitmapHeader(bmp_file.read(BitmapHeader.SIZE_IN_BYTES))
-    #             header_info = BitmapHeaderInfo(bmp_file.read(BitmapHeaderInfo.SIZE_IN_BYTES))
-    #             data_end = header.file_size - 2
-    #
-    #             if header_info.width > self.width:
-    #                 widthClipped = self.width
-    #             elif x < 0:
-    #                 widthClipped = header_info.width + x
-    #             else:
-    #                 widthClipped = header_info.width
-    #
-    #             if header_info.height > self.height:
-    #                 heightClipped = self.height
-    #             elif y < 0:
-    #                 heightClipped = header_info.height + y
-    #             else:
-    #                 heightClipped = header_info.height
-    #
-    #             heightClipped = max(0, min(self.height-y, heightClipped))
-    #             y_offset = max(0, -y)
-    #
-    #             if heightClipped <= 0 or widthClipped <= 0:
-    #                 return
-    #
-    #             width_in_bytes = int(self.width/8)
-    #             if header_info.width_in_bytes > width_in_bytes:
-    #                 rowBytesClipped = width_in_bytes
-    #             else:
-    #                 rowBytesClipped = header_info.width_in_bytes
-    #
-    #             for row in range(y_offset, heightClipped):
-    #                 absolute_row = row + y
-    #                 # seek to beginning of line
-    #                 bmp_file.seek(data_end - (row + 1) * header_info.line_width)
-    #
-    #                 line = bytearray(bmp_file.read(rowBytesClipped))
-    #                 if header_info.last_byte_padding > 0:
-    #                     mask = 0xFF << header_info.last_byte_padding & 0xFF
-    #                     line[-1] &= mask
-    #
-    #                 for byte_index in range(len(line)):
-    #                     byte = line[byte_index]
-    #                     for i in range(8):
-    #                         if byte & (0x80 >> i):
-    #                             self.draw_pixel(byte_index * 8 + i + x, absolute_row)
-    #
-    #     except OSError as e:
-    #         print('error: {}'.format(e))
+    # def draw_string__(self, x0: int, y0: int, string, font, condensed=0):
+    #     x = x0
+    #     for ch in string:
+    #         x += self.draw_char(x, y0, ch, font) - condensed
+    #     return x - x0
+
+    def draw_string(self, x0: int, y0: int, string: str, font: U8GFont, hspacing: int = 0):
+        return font.draw_string(x0, y0, string, self.draw_pixel, hspacing=hspacing)
 
     def get_xbm_dimension(self, sourcefile):
         try:
@@ -664,7 +615,7 @@ class Canvas:
         except OSError:
             print("Can't open " + sourcefile + " for reading")
 
-    def draw_xbm(self, x0, y0, xbm_file_name):
+    def draw_xbm(self, x0: int, y0: int, xbm_file_name):
         """
         Draw xbm image
 

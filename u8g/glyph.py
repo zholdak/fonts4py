@@ -22,6 +22,13 @@ class U8GGlyph:
     # 1  BBX height    unsigned --> lower 4 Bit
     # 2  data size     unsigned -(BBX width + 7)/8 * BBX height --> lower 4 Bit
     # 2  DWIDTH        signed --> upper  4 Bit
+    # = format 44 =
+    # 0  BBX width     unsigned
+    # 1  BBX height    unsigned
+    # 2  data size     unsigned    (BBX width + 7)/8 * BBX height
+    # 4  DWIDTH        signed
+    # 5  BBX xoffset   signed
+    # 6  BBX yoffset   signed
     # byte 0 == 255 indicates empty glyph
 
     @staticmethod
@@ -32,19 +39,28 @@ class U8GGlyph:
     def header_size(font):
         if font.format == 0:
             return 6
+        elif font.format == 44:
+            return 7
         elif font.format == 1:
             return 3
 
     @staticmethod
     def width(font, enc_pos):
-        if font.format == 0:
-            return font.font_data[enc_pos + 0]
-        elif font.format == 1:
-            return font.font_data[enc_pos + 1] >> 4
+        if enc_pos:
+            if font.format == 0:
+                return font.font_data[enc_pos + 0]
+            elif font.format == 44:
+                return font.font_data[enc_pos + 0]
+            elif font.format == 1:
+                return font.font_data[enc_pos + 1] >> 4
+        else:
+            return 0
 
     @staticmethod
     def height(font, enc_pos):
         if font.format == 0:
+            return font.font_data[enc_pos + 1]
+        elif font.format == 44:
             return font.font_data[enc_pos + 1]
         elif font.format == 1:
             return font.font_data[enc_pos + 1] & 0x0f
@@ -53,6 +69,8 @@ class U8GGlyph:
     def data_size(font, enc_pos):
         if font.format == 0:
             return font.font_data[enc_pos + 2]
+        elif font.format == 44:
+            return (font.font_data[enc_pos + 2] << 8) | font.font_data[enc_pos + 3]
         elif font.format == 1:
             return font.font_data[enc_pos + 2] & 0x0f
 
@@ -60,6 +78,9 @@ class U8GGlyph:
     def deltax(font, enc_pos):
         if font.format == 0:
             deltax = font.font_data[enc_pos + 3]
+            return deltax - 256 if deltax > 127 else deltax
+        elif font.format == 44:
+            deltax = font.font_data[enc_pos + 4]
             return deltax - 256 if deltax > 127 else deltax
         elif font.format == 1:
             deltax = (font.font_data[enc_pos + 2] & 0xf0) >> 4
@@ -70,6 +91,9 @@ class U8GGlyph:
         if font.format == 0:
             xoffset = font.font_data[enc_pos + 4]
             return xoffset - 256 if xoffset > 127 else xoffset
+        elif font.format == 44:
+            xoffset = font.font_data[enc_pos + 5]
+            return xoffset - 256 if xoffset > 127 else xoffset
         elif font.format == 1:
             return font.font_data[enc_pos + 0] >> 4
 
@@ -77,6 +101,9 @@ class U8GGlyph:
     def yoffset(font, enc_pos):
         if font.format == 0:
             yoffset = font.font_data[enc_pos + 5]
+            return yoffset - 256 if yoffset > 127 else yoffset
+        elif font.format == 44:
+            yoffset = font.font_data[enc_pos + 6]
             return yoffset - 256 if yoffset > 127 else yoffset
         elif font.format == 1:
             yoffset = font.font_data[enc_pos + 0] & 0x0f
