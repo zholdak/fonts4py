@@ -144,3 +144,13 @@ class U8GGlyph:
 
         return None
         # raise U8GNoGlyph("No character {} ({}) defined in this font!".format(req_enc, chr(req_enc)))
+
+    @staticmethod
+    def glyph_width(font, req_enc: int):
+        enc_pos = U8GGlyph.glyph_pos(font, req_enc)
+        return U8GGlyph.width(font, enc_pos) if enc_pos else 0
+
+    @staticmethod
+    def glyph_xoffset(font, req_enc: int):
+        enc_pos = U8GGlyph.glyph_pos(font, req_enc)
+        return U8GGlyph.xoffset(font, enc_pos) if enc_pos else 0

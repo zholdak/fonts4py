@@ -23,8 +23,8 @@ def draw_font(x, y, name, font):
     str = ''
     for i in range(fgi.enc_start, fgi.enc_end + 1):
         str += chr(i)
-    r = fgi_small.draw_string(x, y, name, draw_pixel)
-    r = fgi.draw_string(x, r[3], str, draw_pixel)
+    r, _ = fgi_small.draw_string(x, y, name, draw_pixel)
+    r, _ = fgi.draw_string(x, r[3], str, draw_pixel)
     draw.rectangle(((r[0], r[1]), (r[2], r[3])))
     return r
 

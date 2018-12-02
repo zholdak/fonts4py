@@ -87,6 +87,8 @@ class U8GFont:
         """
         bound_x0 = x
         bound_y0 = y
+        # bound_delta_x0 = x
+        # bound_delta_y0 = y
         glyph_pos = U8GGlyph.glyph_pos(self, ord(ch))
         if U8GGlyph.isvalid(self, glyph_pos):
             # boundary & baseline
@@ -94,32 +96,40 @@ class U8GFont:
             glyph_height = U8GGlyph.height(self, glyph_pos)
             glyph_xoffset = U8GGlyph.xoffset(self, glyph_pos)
             glyph_yoffset = U8GGlyph.yoffset(self, glyph_pos)
-            bound_x1 = x + glyph_width + glyph_xoffset
+            glyph_deltax = U8GGlyph.deltax(self, glyph_pos)
+            base_x = bound_x0 + glyph_xoffset
             base_y = bound_y0 + self.max_ascent
+            bound_x1 = bound_x0 + glyph_deltax
             bound_y1 = base_y - self.min_descent
-            if draw_pixel_func:
-                base_x = bound_x0 + glyph_xoffset
-                # glyph
-                glyph_y_pos = base_y - glyph_yoffset - glyph_height
-                # let draw
-                glyph_byte_pos = glyph_pos + U8GGlyph.header_size(self)
-                bytes_per_row = (glyph_width + 7) // 8
-                for row in range(glyph_height):
-                    for col in range(bytes_per_row):
-                        byte = self.font_data[glyph_byte_pos]
-                        bits_per_byte = 8 if col < bytes_per_row - 1 or glyph_width % 8 == 0 else glyph_width % 8
-                        for bit_no in range(bits_per_byte):
-                            if (byte << bit_no) & 0x80:
-                                bit_x_offset = (col * 8) + bit_no
+            # bound_delta_x1 = bound_x1 - bound_x0
+            # bound_delta_y1 = bound_y1 - bound_y0
+            # glyph
+            glyph_y_pos = base_y - glyph_yoffset - glyph_height
+            # let draw
+            glyph_byte_pos = glyph_pos + U8GGlyph.header_size(self)
+            bytes_per_row = (glyph_width + 7) // 8
+            for row in range(glyph_height):
+                for col in range(bytes_per_row):
+                    byte = self.font_data[glyph_byte_pos]
+                    bits_per_byte = 8 if col < bytes_per_row - 1 or glyph_width % 8 == 0 else glyph_width % 8
+                    for bit_no in range(bits_per_byte):
+                        if (byte << bit_no) & 0x80:
+                            bit_x_offset = (col * 8) + bit_no
+                            if draw_pixel_func:
                                 draw_pixel_func(base_x + bit_x_offset, glyph_y_pos)
-                        glyph_byte_pos += 1
-                    glyph_y_pos += 1
-            return bound_x0, bound_y0, bound_x1, bound_y1
+                    glyph_byte_pos += 1
+                glyph_y_pos += 1
+            return (bound_x0, bound_y0, bound_x1, bound_y1), \
+                   (bound_x0 + glyph_xoffset,
+                    base_y - glyph_height - glyph_yoffset,
+                    bound_x0 + glyph_width + glyph_xoffset,
+                    base_y - glyph_yoffset)
         else:
             return None
 
-    def draw_string(self, x0: int, y0: int, string: str, draw_pixel_func, hspacing: int = 1, vspacing: int = 1):
+    def draw_string(self, x0: int, y0: int, string: str, draw_pixel_func, hspacing: int = 0, vspacing: int = 0):
         """
+        Draws a string
 
         :param x0: Horizontal position of left-top bottom of string
         :param y0: Vertical position of left-top bottom of string
@@ -127,29 +137,54 @@ class U8GFont:
         :param draw_pixel_func: Function that realizes pixel drawing. Use 'None' to just calculate string boundary
         :param hspacing: Additional horizontal spacing between characters in string. Use negative values to condense
         :param vspacing: Additional vertical spacing between characters in string. Use negative values to condense
-        :return: String boundary
+        :return: Two tuples of result string drawing boundaries. First with all font's offsets, ascents and descents.
+                Second with only "real" boundaries.
         """
         cur_x = x0
         min_ry1 = 0
+        min_rdx0 = float('inf')
+        min_rdy0 = float('inf')
+        max_rdx1 = float('-inf')
+        max_rdy1 = float('-inf')
         for ch in string:
             ret = self.draw_char(cur_x, y0, ch, draw_pixel_func)
             if ret:
-                rx0, ry0, rx1, ry1 = ret
+                (rx0, ry0, rx1, ry1), (rdx0, rdy0, rdx1, rdy1) = ret
+                min_rdx0 = min(min_rdx0, rdx0)
+                min_rdy0 = min(min_rdy0, rdy0)
+                max_rdx1 = max(max_rdx1, rdx1)
+                max_rdy1 = max(max_rdy1, rdy1)
                 cur_x += (rx1 - rx0) + hspacing
                 min_ry1 = max(min_ry1, ry1)
-        return x0, y0, cur_x, min_ry1 + vspacing
+        return (x0, y0, cur_x, min_ry1 + vspacing), (min_rdx0, min_rdy0, max_rdx1, max_rdy1)
 
-    def string_boundary(self, string: str, hspacing: int = 1, vspacing: int = 1):
+    def draw_string_exact(self, x0: int, y0: int, string: str, draw_pixel_func, hspacing: int = 0, vspacing: int = 0):
+        (_, _, _, _), (dx0, dy0, dx1, dy1) = self.string_boundaries(string, hspacing=hspacing, vspacing=vspacing)
+        return self.draw_string(x0 - dx0, y0 - dy0, string, draw_pixel_func, hspacing=hspacing, vspacing=vspacing)
+
+    def string_boundaries(self, string: str, hspacing: int = 0, vspacing: int = 0):
         return self.draw_string(0, 0, string, None, hspacing=hspacing, vspacing=vspacing)
 
-    def string_width(self, string: str, hspacing: int = 1):
-        x0, _, x1, _ = self.string_boundary(string, hspacing=hspacing)
+    def string_width(self, string: str, hspacing: int = 0):
+        (x0, _, x1, _), (_, _, _, _) = self.string_boundaries(string, hspacing=hspacing)
         return x1 - x0
 
-    def string_height(self, string: str, vspacing: int = 1):
-        _, y0, _, y1 = self.string_boundary(string, vspacing=vspacing)
+    def string_exact_width(self, string: str, hspacing: int = 0):
+        (_, _, _, _), (dx0, _, dx1, _) = self.string_boundaries(string, hspacing=hspacing)
+        return dx1 - dx0
+
+    def string_height(self, string: str, vspacing: int = 0):
+        (_, y0, _, y1), (_, _, _, _) = self.string_boundaries(string, vspacing=vspacing)
         return y1 - y0
 
-    def string_width_height(self, string: str, hspacing: int = 1, vspacing: int = 1):
-        x0, y0, x1, y1 = self.string_boundary(string, hspacing=hspacing, vspacing=vspacing)
+    def string_exact_height(self, string: str, vspacing: int = 0):
+        (_, _, _, _), (_, dy0, _, dy1) = self.string_boundaries(string, vspacing=vspacing)
+        return dy1 - dy0
+
+    def string_width_height(self, string: str, hspacing: int = 0, vspacing: int = 0):
+        (x0, y0, x1, y1), (_, _, _, _) = self.string_boundaries(string, hspacing=hspacing, vspacing=vspacing)
         return (x1 - x0), (y1 - y0)
+
+    def string_exact_width_height(self, string: str, hspacing: int = 0, vspacing: int = 0):
+        (_, _, _, _), (dx0, dy0, dx1, dy1) = self.string_boundaries(string, hspacing=hspacing, vspacing=vspacing)
+        return (dx1 - dx0), (dy1 - dy0)

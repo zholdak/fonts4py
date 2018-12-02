@@ -2,15 +2,7 @@ from PIL import Image, ImageDraw
 
 from canvas.canvas import Canvas
 from u8g.font import U8GFont
-import pyfonts.font_profont11_6x7_numbers as font_b9n_data
-import pyfonts.font_lato_bold_21_degC as font_b21degC_data
-import pyfonts.font_lato_bold_33_numbers as font_b33n_data
-import pyfonts.font_lato_bold_58_numbers as font_b58n_data
-
-font_b9n = U8GFont(font_b9n_data.data)
-font_b21degC = U8GFont(font_b21degC_data.data)
-font_b33n = U8GFont(font_b33n_data.data)
-font_b58n = U8GFont(font_b58n_data.data)
+from u8g.glyph import U8GGlyph
 
 
 class Drawing(Canvas):
@@ -29,7 +21,7 @@ class Drawing(Canvas):
     def update(self):
         self.img.show()
 
-    def draw_battery(self, x, y, pc=0, width=10, height=30):
+    def draw_battery(self, x: int, y: int, pc: int = 0, width: int = 10, height: int = 30):
         """
         Draw battery indicator
 
@@ -51,7 +43,7 @@ class Drawing(Canvas):
         self.draw_filled_rect(x + inner_margin, y + piptik_height + inner_margin + (full - filled),
                               x + width - inner_margin, y + height - inner_margin)
 
-    def draw_temperature(self, x=None, y=0, temp=24.5):
+    def draw_temperature(self, x: int = None, y: int= 0, temp: float = 24.5):
         """
         Draw Temperature indicator
 
@@ -60,27 +52,96 @@ class Drawing(Canvas):
         :param temp: Temperature (float) value, 24.5, for example.
         :return: Tuple of left-top and right-bottom (x0, y0, x1, y1) coordinated of temperature indicator
         """
+
+        import pyfonts.font_lato_bold_21_degC as font_b21degC_data
+        import pyfonts.font_lato_bold_33_numbers as font_b33n_data
+        import pyfonts.font_lato_bold_58_numbers as font_b58n_data
+
         text0 = str(int(temp))
         text1 = ".{:d}".format(int(temp * 10 % 10))
         textc = '°C'
-        font0 = font_b58n
-        font1 = font_b33n
-        font2 = font_b21degC
-        text0w, text0h = font0.string_width_height(text0, hspacing=2)
-        text1w, text1h = font1.string_width_height(text1, hspacing=2)
-        textcw = font2.string_width(textc, hspacing=2)
-        w = text0w + text1w
-        if x is None:
-            x = (self.width / 2) - (w / 2)
-        x0 = x
+        font0 = U8GFont(font_b58n_data.data)
+        font1 = U8GFont(font_b33n_data.data)
+        font2 = U8GFont(font_b21degC_data.data)
+        text0w, text0h = font0.string_exact_width_height(text0, hspacing=2)
+        text1w, text1h = font1.string_exact_width_height(text1, hspacing=2)
+        textcw = font2.string_exact_width(textc, hspacing=2)
+        w = text0w + text1w + U8GGlyph.glyph_xoffset(font1, ord('.')) + 2
+        x0 = (self.width / 2) - (w / 2) if x is None else x
         x1 = x0 + w
         y1 = y + text0h
-        self.draw_string(x0, y, text0, font0, hspacing=2)
-        self.draw_string(x1 - text1w, y1 - text1h - 5, text1, font1, hspacing=2)
-        self.draw_string(x1 - textcw, y + 10, textc, font2, hspacing=2)
+        self.draw_string_exact(x0, y, text0, font0, hspacing=2)
+        self.draw_string_exact(x1 - text1w, y1 - text1h, text1, font1, hspacing=2)
+        self.draw_string_exact(x1 - textcw, y, textc, font2, hspacing=2)
+
+        del font0
+        del font1
+        del font2
+        del font_b21degC_data
+        del font_b33n_data
+        del font_b58n_data
+
         return x0, y, x1, y1
 
-    def draw_grid(self, x0, y0, x1, y1, step, hcount, min_text, max_text):
+    def draw_humidity(self, x: int = 0, y: int = 0, humid: int = 54):
+        """
+        Draw humidity indicator
+
+        :param x: Horizontal position
+        :param y: Vertical position
+        :param humid: Humidity value
+        :return: Tuple of left-top and right-bottom (x0, y0, x1, y1) coordinated of humidity indicator
+        """
+
+        from gfx import pc_rh_xbm as xbm
+        import pyfonts.font_lato_bold_40_numbers as font_b40n_data
+
+        font = U8GFont(font_b40n_data.data)
+        text = str(int(humid))
+        (_, _, _, _), (dx0, _, dx1, _) = self.draw_string_exact(x, y, text, font, hspacing=-1)
+        last_text_char = ord(text[len(text)-1:len(text)])  # get last char from humidity string
+        xoff = U8GGlyph.glyph_xoffset(font, last_text_char) + 2  # proper interval from humidity value
+        _, _, x1, y1 = self.draw_xbm(x + (dx1 - dx0) + xoff + 3, y, xbm)
+
+        del font
+        del font_b40n_data
+        del xbm
+
+        return x, y, x1, y1
+
+    def draw_pressure(self, x: int = 0, y: int = 0, press: int = 754, align=Canvas.ALIGN_RIGHT):
+        """
+        Draw pressure indicator
+
+        :param x: Horizontal position
+        :param y: Vertical position
+        :param press: Pressure value (in mmHg)
+        :param align: Align Canvas.ALIGN_LEFT of Canvas.ALIGN_RIGHT
+        :return: Tuple of left-top and right-bottom (x0, y0, x1, y1) coordinated of pressure indicator
+        """
+
+        from gfx import mmhg_xbm as xbm
+        import pyfonts.font_lato_bold_40_numbers as font_b40n_data
+
+        text = str(press)
+        font = U8GFont(font_b40n_data.data)
+        (text_width, text_height) = font.string_exact_width_height(text, hspacing=-1)
+        last_text_char = ord(text[len(text)-1:len(text)])  # get last char from humidity string
+        xoff = U8GGlyph.glyph_xoffset(font, last_text_char) + 2  # proper interval from humidity value
+        x0 = x if align == Canvas.ALIGN_LEFT else self.width - x - text_width - xbm.width - xoff
+        x1 = x0 + text_width + xbm.width + xoff if align == Canvas.ALIGN_LEFT else self.width - x
+        y0 = y
+        y1 = y0 + max(text_height, xbm.height)
+        self.draw_xbm(x1 - xbm.width, y, xbm)
+        self.draw_string_exact(x0, y0, text, font, hspacing=-1)
+
+        del font
+        del font_b40n_data
+        del xbm
+
+        return x0, y0, x1, y1
+
+    def draw_grid(self, x0: int, y0: int, x1: int, y1: int, step: int, hcount: int, min_text: str, max_text: str):
         """
         Draws graph grid
 
@@ -94,7 +155,10 @@ class Drawing(Canvas):
         :param max_text: Text with maximum value, to be written on right vertical axis
         :return: Tuple of left-top and right-bottom (x0, y0, x1, y1) coordinated of available graph boundary
         """
-        font = font_b9n
+
+        import pyfonts.font_profont11_6x7_numbers as font_b9n_data
+
+        font = U8GFont(font_b9n_data.data)
         max_text_w = font.string_width(max_text, hspacing=1)
         self.draw_string(x0, y0, max_text, font, hspacing=1)
         min_text_w, min_text_h = font.string_width_height(min_text, hspacing=1)
@@ -113,9 +177,13 @@ class Drawing(Canvas):
         for i in range(hcount):
             hx = x + 5 + (i * hstep)
             self.draw_line(hx, y1 - 3, hx, y1)
+
+        del font
+        del font_b9n_data
+
         return x + 5, y0, x1, y1 - 4
 
-    def draw_graph(self, x0, y0, x1, y1, graph_data):
+    def draw_graph(self, x0: int, y0: int, x1: int, y1: int, graph_data):
         """
         Draws graph
 
@@ -150,10 +218,19 @@ class Drawing(Canvas):
                 lx0 = lx1  # end point of current line became first point on next iterate
                 ly0 = ly1
 
+    def draw_status(self, text: str):
+        from pyfonts import u8g_font_helvB08_full
+        font = U8GFont(u8g_font_helvB08_full.data)
+        text_width, text_height = font.string_exact_width_height(text, hspacing=0)
+        self.draw_string_exact(self.width / 2 - text_width / 2, self.height - text_height - 2, text, font, hspacing=0)
+        del font
+        del u8g_font_helvB08_full
 
 c = Drawing()
 c.draw_battery(c.width - 12, 2, 100)
-_, _, _, y = c.draw_temperature(y=-10, temp=24.7)
+_, _, _, y = c.draw_temperature(y=5, temp=24.7)
+c.draw_humidity(x=0, y=y + 10, humid=54)
+_, _, _, y = c.draw_pressure(x=0, y=y + 10, press=754, align=Canvas.ALIGN_RIGHT)
 
 press_data = [759.46, 759.46, 756.92, 756.92, 756.92, 756.92, 756.92, 756.92, 756.92, 756.92, 756.92, 756.92, 756.92,
               754.38, 754.38, 754.38, 754.38, 754.38, 754.38, 754.38, 754.38, 754.38, 754.38, 754.38, 751.84, 751.84,
@@ -172,19 +249,29 @@ graph_data = [int(i) for i in press_data[:48]]
 x0, y0, x1, y1 = c.draw_grid(x0=2, y0=y + 10, x1=197, y1=y + 6 + 50, step=10, hcount=len(graph_data),
                              min_text=str(min(graph_data)), max_text=str(max(graph_data)))
 c.draw_graph(x0, y0, x1, y1, graph_data)
-
+c.draw_status("2018/01/16 21:28:33")
 c.update()
 
 
 # from PIL import Image, ImageDraw
 #
-# from u8g.font import U8GFont
+# import pyfonts.font_lato_bold_58_full as font_b58f_data
+# font_b58f = U8GFont(font_b58f_data.data)
 #
 # img = Image.new('L', (200, 200), 'white')
 # draw = ImageDraw.Draw(img)
 #
+#
 # def draw_pixel(x: int, y: int):
 #     draw.point((x, y))
+#
+#
+# (x0, y0, x1, y1), (dx0, dy0, dx1, dy1) = font_b58f.draw_string(10, 10, '27.3', draw_pixel)
+# draw.rectangle(((x0, y0), (x1, y1)))
+# draw.rectangle(((dx0, dy0), (dx1, dy1)))
+#
+# img.show()
+
 #
 #
 # # import pyfonts.font_lato_bold_36_full as lb36
@@ -195,4 +282,4 @@ c.update()
 #
 # pf.draw_string(10, 10, "25", draw_pixel)
 #
-# img.show()
+#

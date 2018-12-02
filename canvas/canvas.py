@@ -522,119 +522,45 @@ class Canvas:
     def char_width(self, char, font: U8GFont):
         return U8GGlyph.width(font, U8GGlyph.glyph_pos(font, ord(char)))
 
-    # def char_width_exact(self, char, font):
-    #     glyph, char_height, char_width = font.get_ch(char)
-    #     buf = bytearray(glyph)
-    #     bytes_per_line = math.ceil(char_width/8)
-    #     last_byte_min_width = 8
-    #     for row_no in range(0, char_height):
-    #         byte = buf[(bytes_per_line * row_no) + (char_width // 8)]
-    #         print("{:02d}: {:>08b}".format(row_no, byte))
-    #         #for bit_no in range(0, 8):
-    #     del glyph
-
-    # @staticmethod
-    # def string_width(string: str, font: U8GFont):
-    #     x0, _, x1, _ = font.draw_string(0, 0, string, None)
-    #     return x1 - x0
-
-    # def draw_char__(self, x0, y0, char, font):
-    #     glyph, char_height, char_width = font.get_ch(char)
-    #     if glyph is None:
-    #         return  # All done
-    #     buf = bytearray(glyph)
-    #     bytes_per_row = math.ceil(char_width / 8)
-    #     for row_no in range(char_height):
-    #         for col_no in range(bytes_per_row):
-    #             byte = buf[col_no + (bytes_per_row * row_no)]
-    #             for bit_no in range(8):
-    #                 char_col_pos = bit_no + (col_no * 8)
-    #                 if char_col_pos > char_width:
-    #                     break
-    #                 if byte << bit_no & 0x80:
-    #                     self.draw_pixel(x0 + char_col_pos, y0 + row_no)
-    #     del buf
-    #     del glyph
-    #     return char_width
-
     def draw_char(self, x0: int, y0: int, char, font: U8GFont):
         return font.draw_char(x0, y0, char, self.draw_pixel)
-
-    # def draw_string__(self, x0: int, y0: int, string, font, condensed=0):
-    #     x = x0
-    #     for ch in string:
-    #         x += self.draw_char(x, y0, ch, font) - condensed
-    #     return x - x0
 
     def draw_string(self, x0: int, y0: int, string: str, font: U8GFont, hspacing: int = 0):
         return font.draw_string(x0, y0, string, self.draw_pixel, hspacing=hspacing)
 
-    def get_xbm_dimension(self, sourcefile):
-        try:
-            with open(sourcefile, 'r') as f:
-                phase = 0
-                for line in f:
-                    if phase < 2:
-                        if line.startswith('#define'):
-                            yield int(line.split(' ')[-1])
-                            phase += 1
-                    if phase == 2:
-                        break
-        except OSError:
-            print("Can't open " + sourcefile + " for reading")
+    def draw_string_exact(self, x0: int, y0: int, string: str, font: U8GFont, hspacing: int = 0):
+        return font.draw_string_exact(x0, y0, string, self.draw_pixel, hspacing=hspacing)
 
-    def _get_xbm_data(self, sourcefile):
-        errmsg = ''.join(("File: '", sourcefile, "' is not a valid XBM file"))
-        try:
-            with open(sourcefile, 'r') as f:
-                phase = 0
-                for line in f:
-                    if phase < 2:
-                        if line.startswith('#define'):
-                            yield int(line.split(' ')[-1])
-                            phase += 1
-                    if phase == 2:
-                        start = line.find('{')
-                        if start >= 0:
-                            line = line[start + 1:]
-                            phase += 1
-                    if phase == 3:
-                        if not line.isspace():
-                            phase += 1
-                    if phase == 4:
-                        end = line.find('}')
-                        if end >= 0:
-                            line = line[:end]
-                            phase += 1
-                        hexnums = line.split(',')
-                        if hexnums[0] != '':
-                            for hexnum in [q for q in hexnums if not q.isspace()]:
-                                yield int(hexnum, 16)
-                if phase != 5:
-                    print(errmsg)
-        except OSError:
-            print("Can't open " + sourcefile + " for reading")
-
-    def draw_xbm(self, x0: int, y0: int, xbm_file_name):
+    def draw_xbm(self, x0: int, y0: int, xbm):
         """
-        Draw xbm image
+        Draw xbm image. Image should be converted from original 'xbm'.
+
+        For example, content of file ``mmhg_xbm.py``::
+
+            width = 17
+            height = 40
+            bits = [ 0x18, 0x70, ... ]
 
         :param x0: Horizontal position of left-top position of the bitmap
         :param y0: Vertical position of left-top position of the bitmap
-        :param xbm_file_name: Bitmap name (and path) on the filesystem
+        :param xbm: Bitmap
         :return: Tuple (x0, y0, x1, y1) of bitmap boundary
         """
-        xbm = self._get_xbm_data(xbm_file_name)
-        bmp_width = next(xbm)
-        bmp_height = next(xbm)
-        bytes_per_row = math.ceil(bmp_width / 8)
-        for row_no in range(bmp_height):
+        byte_pos = 0
+        bytes_per_row = math.ceil(xbm.width / 8)
+        for row_no in range(xbm.height):
             for col_no in range(bytes_per_row):
-                byte = next(xbm)
+                byte = xbm.bits[byte_pos]
                 for bit_no in range(8):
                     char_col_pos = bit_no + (col_no * 8)
-                    if char_col_pos > bmp_width:
+                    if char_col_pos > xbm.width:
                         break
                     if byte >> bit_no & 0x1:
                         self.draw_pixel(x0 + char_col_pos, y0 + row_no)
-        return x0, y0, x0 + bmp_width, y0 + bmp_height
+                byte_pos += 1
+        return x0, y0, x0 + xbm.width, y0 + xbm.height
+
+    def del_xbm(self, xbm):
+        del xbm.bits
+        del xbm.width
+        del xbm.height
