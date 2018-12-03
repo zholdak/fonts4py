@@ -1,3 +1,12 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+"""bytewriter.py: Write arrays in various ways"""
+
+__author__ = "Aleksey.Zholdak"
+__version__ = "1.0.1"
+__email__ = "aleksey@zholdak.com"
+
 
 class ByteAsBytearrayWriter(object):
     bytes_per_line = 16

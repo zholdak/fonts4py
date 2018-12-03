@@ -91,7 +91,7 @@ def repack_and_write(stream, font_data, charset):
     print(font2)
 
     stream.write("# {}\n".format(repr(font2)))
-    stream.write('all_chars = """{}"""\n'.format(font2.get_all_chars()))
+    stream.write('# all_chars = """{}"""\n'.format(font2.get_all_chars()))
     # bw_font = ByteAsIntArrayWriter(stream, 'data')
     bw_font = ByteAsBytearrayWriter(stream, 'data')
     bw_font.out_data(repacked_font_header)

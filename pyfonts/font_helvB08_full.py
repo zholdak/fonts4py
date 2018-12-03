@@ -1,5 +1,5 @@
 # len=1497, width=12, height=19, x_offset=-1, y_offset=-5, cap_A_height=8, start_cap_A=438, start_sm_a=883, enc_start=32, enc_end=190, desc_g=-2, max_ascent=11, min_descent=-2, xascent=8, xdescent=-2
-all_chars = """ !"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\]^_abcdefghijklmnopqrstuvwxyz{|}~¤§©«°±²³µ¹»¼½¾"""
+# all_chars = """ !"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\]^_abcdefghijklmnopqrstuvwxyz{|}~¤§©«°±²³µ¹»¼½¾"""
 data =\
 b'\x00\x0c\x13\xff\xfb\x08\x01\xb6\x03\x73\x20\xbe\xfe\x0b\xfe\x08'\
 b'\xfe\x00\x00\x00\x03\x00\x01\x02\x08\x08\x04\x01\x00\xc0\xc0\xc0'\

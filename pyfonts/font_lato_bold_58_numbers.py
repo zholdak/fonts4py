@@ -1,5 +1,5 @@
 # len=3307, width=151, height=109, x_offset=-42, y_offset=-22, cap_A_height=58, start_cap_A=0, start_sm_a=0, enc_start=45, enc_end=57, desc_g=-14, max_ascent=76, min_descent=-14, xascent=64, xdescent=-14
-all_chars = """-0123456789"""
+# all_chars = """-0123456789"""
 data =\
 b'\x2c\x97\x6d\xd6\xea\x3a\x00\x00\x00\x00\x2d\x39\xf2\x4c\xf2\x40'\
 b'\xf2\x15\x08\x00\x18\x1e\x05\x14\xff\xff\xf8\xff\xff\xf8\xff\xff'\
